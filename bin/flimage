@@ -1,0 +1,148 @@
+#!/usr/bin/python
+#
+# Copyright 2012 Michael K Johnson
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
+import argparse
+import os
+import sys
+
+import imagebuilder
+
+
+def main(argv):
+
+    ap = argparse.ArgumentParser(description='Build images locally')
+    ap.add_argument('-b', '--basename',
+                    required=True,
+                    help='basename for produced files')
+    ap.add_argument('-s', '--size', type=int,
+                    help='size of image file to create in MiB')
+    ap.add_argument('--sparse',
+                    action="store_true", default=False,
+                    help='create sparse image file')
+    ap.add_argument('-d', '--dir',
+                    required=True,
+                    help='work directory')
+    ap.add_argument('-m', '--model',
+                    required=True,
+                    help='file containing system model')
+    ap.add_argument('-D', '--root-device',
+                    help='name of root device (e.g. /dev/xvda1)')
+    ap.add_argument('--pre-image',
+                    action='append',
+                    help='[prefix:]archive to unpack before installation')
+    ap.add_argument('--post-image',
+                    action='append',
+                    help='[prefix:]archive to unpack after installation')
+    ap.add_argument('--preserve-root',
+                    action="store_true", default=False,
+                    help='do not unset the root password')
+    ap.add_argument('-i', '--initlevel', type=int,
+                    default=3,
+                    help='default initlevel for the image')
+    ap.add_argument('-t', '--type',
+                    choices=['rawHd', 'rawFs', 'ami',],
+                    required=True,
+                    help='type of image to build')
+    ap.add_argument('--tarball',
+                    action="store_true", default=False,
+                    help='create tarball from image file')
+    args = ap.parse_args(argv[1:])
+
+    if not args.tarball:
+        if not args.size:
+            sys.stderr.write('image type "%s" requires --size\n' % args.type)
+            ap.print_usage()
+            sys.exit(1)
+
+    if args.type == 'tarball':
+        if not args.size:
+            args.size = 30000
+            args.sparse = True
+
+    if args.root_device:
+        rootdev = args.root_device
+    else:
+        rootdev = '/dev/sda1'
+        if args.type in (('ami'),):
+            rootdev = '/dev/xvda1'
+        elif args.type in (('rawFs'),):
+            rootdev = '/dev/sda'
+
+    IB = imagebuilder.ImageBuilder(args.dir, args.size, rootdev, 'ext4')
+
+    try:
+        IB.allocateImage(args.sparse)
+
+        loopDevices = []
+        if args.type in (('rawHd'),):
+            IB.partitionImage(args.size)
+            IB.loopImage()
+
+        IB.createFilesystem()
+
+        IB.mountFilesystem()
+
+        IB.prepareFilesystem(args.model)
+
+        if args.pre_image:
+            for pre_image in args.pre_image:
+                IB.installPreImage(pre_image)
+
+        IB.installSystem()
+
+        IB.removeRollbacks()
+
+        if args.post_image:
+            for post_image in args.post_image:
+                IB.installPostImage(post_image)
+
+        IB.createBootloaderConf()
+
+        IB.runTagScripts()
+
+        IB.convertPasswords()
+
+        if not args.preserve_root:
+            IB.unsetRootPassword()
+
+        IB.setInitlevel(args.initlevel)
+
+        IB.createInitrd()
+
+        IB.runBootman()
+
+        IB.finishFilesystem()
+
+        if args.tarball:
+            tarball = IB.createTarball()
+            os.rename(tarball, '%s/%s.tar.gz' %(args.dir, args.basename))
+
+        IB.unmountFilesystem()
+
+        if loopDevices:
+            IB.unloopImage()
+
+        IB.removeRootdir()
+
+        os.rename(IB.image, '%s/%s.img' %(args.dir, args.basename))
+    except:
+         IB.cleanUp()
+         raise
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
