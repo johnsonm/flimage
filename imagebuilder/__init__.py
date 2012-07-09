@@ -21,6 +21,11 @@ import subprocess
 import sys
 import tempfile
 
+from plumbum import FG, BG, local
+from plumbum.cmd import bootman, chroot, conary, cp, dd, depmod, dracut
+from plumbum.cmd import extlinux, kpartx, mount, parted, sh, tar, umount
+from plumbum.cmd import echo, sqlite3
+
 class ImageBuilderError(IOError):
     pass
 
@@ -62,26 +67,20 @@ class ImageBuilder(object):
         sys.stderr.write(file(self.errname).readlines()[-10:])
         raise ImageBuilderError, message
 
-    def Popen(self, arglist, **kwargs):
-        if 'stderr' not in kwargs:
-            kwargs['stderr'] = self.errfd
-        if 'stdout' not in kwargs:
-            kwargs['stdout'] = subprocess.PIPE
-        sys.stderr.write('running command "%s"' % ' '.join(arglist))
-        cmd = arglist[0]
-        if cmd == 'chroot' and len(arglist) > 2:
-            cmd = arglist[2]
-        self.progress('%s ...' % cmd)
-        return subprocess.Popen(arglist, **kwargs)
-
     def wait(self, p):
         ret = p.wait()
         if ret:
             self.raiseError, 'command failed with return code %d' % ret
 
-    def PopenWait(self, arglist, **kwargs):
-        p = self.Popen(arglist, **kwargs)
-        self.wait(p)
+    def run(self, cmd, fg=False):
+        os.write(self.errfd, 'RUNNING COMMAND: "%s"\n' % str(cmd))
+        if fg:
+            sys.stdout.write('\n' + str(cmd) + '\n')
+            self.progressMessage = ''
+            cmd(stdout=None, stderr=self.errfd)
+        else:
+            self.progress(str(cmd))
+            return cmd(stderr=self.errfd)
 
     def progress(self, message):
         whiteoutLen = (len(self.progressMessage) - len(message))
@@ -95,46 +94,40 @@ class ImageBuilder(object):
 
     def allocateImage(self, sparse=True):
         if sparse:
-            self.PopenWait(
-                ['dd', 'if=/dev/zero', 'of=%s'%self.image, 'bs=1M',
-                 'seek=%d' %(self.size), 'count=0', ])
+            self.run(dd['if=/dev/zero', 'of=%s'%self.image, 'bs=1M',
+                'seek=%d' %(self.size), 'count=0', ])
         else:
-            self.PopenWait(
-                ['dd', 'if=/dev/zero', 'of=%s'%self.image, 'bs=1M',
-                 'count=%d' %self.size, ])
+            self.run(dd['if=/dev/zero', 'of=%s'%self.image, 'bs=1M',
+                'count=%d' %self.size, ])
 
     def partitionImage(self, size):
         sectors = size * 2048
         firstsector = 2048 # use fdisk default of reserving 1MB
         lastsector = sectors - 1
-        return self.PopenWait(['parted', '--script', self.image,
+        self.run(parted['--script', self.image,
             'unit', 's',
             'mklabel', 'msdos',
             'mkpart', 'primary', '%d'%firstsector, '%d'%lastsector,
             'set', '1', 'boot', 'on'])
 
     def createFilesystem(self):
-        return self.PopenWait(['mkfs.%s' %self.fstype, '-F', '-L', '/', self.image])
+        return self.run(local['mkfs.%s' %self.fstype]['-F', '-L', '/', self.image])
 
     def loopImage(self):
-        p = self.Popen(['kpartx', '-a', '-v', self.image],
-            stdout=subprocess.PIPE)
-        o, e = p.communicate()
-        lines = o.split('\n')
-        self.wait(p)
+        lines = self.run(kpartx['-a', '-v', self.image]).split('\n')
         if lines:
             self.mountDevice = '/dev/mapper/%s' %(
                 [x.split()[2] for x in lines if x][0])
 
     def unloopImage(self):
-        self.PopenWait(['kpartx', '-d', self.image])
+        self.run(kpartx['-d', self.image])
 
     def mountFilesystem(self):
         self.rootdir = tempfile.mkdtemp(prefix='mkd.', dir=self.basedir)
-        self.PopenWait(['mount', self.mountDevice, '-t', self.fstype, self.rootdir])
+        self.run(mount[self.mountDevice, '-t', self.fstype, self.rootdir])
         
     def unmountFilesystem(self):
-        self.PopenWait(['umount', self.rootdir])
+        self.run(umount[self.rootdir])
 
     def prepareFilesystem(self, modelFile):
         os.mkdir(self.rootdir + '/dev', 0755)
@@ -172,15 +165,16 @@ class ImageBuilder(object):
             '',
         )))
 
-        self.PopenWait(['mount', 'proc', '-t', 'proc', self.rootdir + '/proc'])
-        self.PopenWait(['mount', 'devpts', '-t', 'devpts',
-                        self.rootdir + '/dev/pts', '-o', 'gid=5,mode=620'])
-        self.PopenWait(['mount', 'sys', '-t', 'sysfs', self.rootdir + '/sys'])
-        self.PopenWait(['mount', 'tmpfs', '-t', 'tmpfs', self.rootdir + '/dev/shm'])
-        self.PopenWait(['mount', 'tmpfs', '-t', 'tmpfs', self.rootdir + '/tmp'])
+        self.run(mount['proc', '-t', 'proc', self.rootdir + '/proc'])
+        self.run(mount['devpts', '-t', 'devpts',
+                      self.rootdir + '/dev/pts', '-o', 'gid=5,mode=620'])
+        self.run(mount['sys', '-t', 'sysfs', self.rootdir + '/sys'])
+        self.run(mount['tmpfs', '-t', 'tmpfs', self.rootdir + '/dev/shm'])
+        self.run(mount['tmpfs', '-t', 'tmpfs', self.rootdir + '/tmp'])
         # speed up database by not waiting for disk
-        self.PopenWait(['mount', 'tmpfs', '-t', 'tmpfs',
+        self.run(mount['tmpfs', '-t', 'tmpfs',
                         self.rootdir + '/var/lib/conarydb'])
+        echo['pragma page_size=4096; vacuum;'] | sqlite3[self.rootdir + '/var/lib/conarydb/conarydb']
 
 
     def finishFilesystem(self):
@@ -188,17 +182,16 @@ class ImageBuilder(object):
         if os.path.exists(self.rootdir + '/boot/extlinux/mbr.bin'):
             mbr = file(self.rootdir + '/boot/extlinux/mbr.bin').read()
 
-            self.PopenWait(['extlinux', '-i', self.rootdir + '/boot/extlinux'])
+            self.run(extlinux['-i', self.rootdir + '/boot/extlinux'])
 
         # copy conary database from tmpfs to image
         os.mkdir(self.rootdir + '/var/lib/conarydb.real', 0755)
         conarydbFiles = [self.rootdir + '/var/lib/conarydb/' + x
                          for x in os.listdir(self.rootdir + '/var/lib/conarydb')]
         for conaryFile in conarydbFiles:
-            self.PopenWait(['cp', '-a',
+            self.run(cp['-a',
                             conaryFile,
                             self.rootdir + '/var/lib/conarydb.real/'])
-        self.PopenWait(['umount', self.rootdir + '/var/lib/conarydb'])
         self.unmountConarydb()
         os.rename(self.rootdir + '/var/lib/conarydb.real',
                   self.rootdir + '/var/lib/conarydb')
@@ -215,28 +208,28 @@ class ImageBuilder(object):
                            % (l, len(mbr)))
 
     def unmountConarydb(self):
-        self.PopenWait(['umount', self.rootdir + '/var/lib/conarydb'])
+        self.run(umount[self.rootdir + '/var/lib/conarydb'])
 
     def unmountFilesystems(self):
-        self.PopenWait(['umount', self.rootdir + '/proc'])
-        self.PopenWait(['umount', self.rootdir + '/dev/pts'])
-        self.PopenWait(['umount', self.rootdir + '/sys'])
-        self.PopenWait(['umount', self.rootdir + '/dev/shm'])
-        self.PopenWait(['umount', self.rootdir + '/tmp'])
+        self.run(umount[self.rootdir + '/proc'])
+        self.run(umount[self.rootdir + '/dev/pts'])
+        self.run(umount[self.rootdir + '/sys'])
+        self.run(umount[self.rootdir + '/dev/shm'])
+        self.run(umount[self.rootdir + '/tmp'])
 
     def createTarball(self):
         fd, t = tempfile.mkstemp(prefix='image.',
                                  suffix='.tar.gz',
                                  dir=self.basedir)
         os.close(fd)
-        self.PopenWait(['tar', '-C', self.rootdir, '-c', '-z', '-f', t, '.'])
+        self.run(tar['-C', self.rootdir, '-c', '-z', '-f', t, '.'])
         return t
 
     def installTarball(self, prefix, tarball):
         basedir = self.rootdir + prefix
         if not os.path.exists(basedir):
             os.makedirs(basedir, mode=0755)
-        self.PopenWait(['tar', '-C', basedir, '-x', '-z', '-f', tarball])
+        self.run(tar['-C', basedir, '-x', '-z', '-f', tarball])
 
     def installTarballWithPrefix(self, tarball):
         prefix = '/'
@@ -252,18 +245,15 @@ class ImageBuilder(object):
         # Note that system config is applied; this is generally not
         # important but may cause :supdoc noise later on (for instance).
         # This can be improved later
-        self.PopenWait(
-            ['conary', 'sync',
+        self.run(conary['sync',
              '--no-interactive',
              '--replace-unmanaged-files',
              '--tag-script=%s/tmp/tag-script' %self.rootdir,
-             '--root', self.rootdir],
-            stdout=sys.stdout)
+             '--root', self.rootdir], fg=True)
 
     def removeRollbacks(self):
         # remove conary rollbacks to avoid rolling back to uninstalled
-        self.PopenWait(
-            ['conary', 'rmrollback', 'r.0',
+        self.run(conary['rmrollback', 'r.0',
              '--no-interactive',
              '--root', self.rootdir])
 
@@ -284,14 +274,10 @@ class ImageBuilder(object):
         )))
 
     def convertPasswords(self):
-        self.PopenWait(
-            ['chroot', self.rootdir,
-             'pwconv',])
+        self.run(chroot[self.rootdir, 'pwconv'])
 
     def unsetRootPassword(self):
-        self.PopenWait(
-            ['chroot', self.rootdir,
-             'usermod', '-p', '', 'root'])
+        self.run(chroot[self.rootdir, 'usermod', '-p', '""', 'root'])
 
     def setInitlevel(self, initlevel):
         inittab = file(self.rootdir + '/etc/inittab').readlines()
@@ -325,20 +311,16 @@ class ImageBuilder(object):
         t.append('')
         tags = '\n'.join(t)
         file(self.rootdir + '/tmp/tag-script', 'w').write(tags)
-        self.PopenWait(
-            ['chroot', self.rootdir,
-             'sh', '/tmp/tag-script'], stdout=sys.stdout)
+        self.run(chroot[self.rootdir, 'sh', '/tmp/tag-script'], fg=True)
 
     def createInitrd(self):
         initrd = '/boot/initrd-%s' % self.kver
-        self.PopenWait(
-            ['chroot', self.rootdir,
+        self.run(chroot[self.rootdir,
              'depmod', '-ae', '-F', '/boot/System.map-' + self.kver, self.kver],
-            stdout=sys.stdout)
-        self.PopenWait(
-            ['chroot', self.rootdir,
+             fg=True)
+        self.run(chroot[self.rootdir,
              'dracut', '-f', initrd, self.kver],
-            stdout=sys.stdout)
+             fg=True)
 
     def runBootman(self):
         rootConf = self.rootdir + '/etc/bootloader.d/root.conf'
@@ -348,9 +330,7 @@ class ImageBuilder(object):
                 'read_only ',
                 'root %s' % self.rootdev)))
 
-        self.PopenWait(
-            ['chroot', self.rootdir,
-             'bootman'])
+        self.run(chroot[self.rootdir, 'bootman'])
 
         # make images work when booted in EC2
         menuLst = self.rootdir + '/boot/grub/menu.lst'
