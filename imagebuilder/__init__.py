@@ -44,6 +44,7 @@ class ImageBuilder(object):
                                           suffix='.img',
                                           dir=basedir)
         self.mountDevice = self.image
+        self.conaryDbMounted = False
         os.close(fd)
         self.rootdir = None
 
@@ -124,7 +125,7 @@ class ImageBuilder(object):
 
     def mountFilesystem(self):
         self.rootdir = tempfile.mkdtemp(prefix='mkd.', dir=self.basedir)
-        self.run(mount[self.mountDevice, '-t', self.fstype, self.rootdir])
+        self.run(mount[self.mountDevice, '-o', 'barrier=0,data=writeback', '-t', self.fstype, self.rootdir])
         
     def unmountFilesystem(self):
         self.run(umount[self.rootdir])
@@ -171,10 +172,18 @@ class ImageBuilder(object):
         self.run(mount['sys', '-t', 'sysfs', self.rootdir + '/sys'])
         self.run(mount['tmpfs', '-t', 'tmpfs', self.rootdir + '/dev/shm'])
         self.run(mount['tmpfs', '-t', 'tmpfs', self.rootdir + '/tmp'])
+
+    def mountConarydb(self):
         # speed up database by not waiting for disk
         self.run(mount['tmpfs', '-t', 'tmpfs',
                         self.rootdir + '/var/lib/conarydb'])
-        echo['pragma page_size=4096; vacuum;'] | sqlite3[self.rootdir + '/var/lib/conarydb/conarydb']
+        self.conaryDbMounted = True
+
+    def tuneConarydb(self, pageSize=4096, defaultCacheSize=2000):
+        self.run(echo['pragma default_cache_size=%d; '
+                      'pragma page_size=%d; '
+                      'vacuum;' % (defaultCacheSize, pageSize)]
+                 | sqlite3[self.rootdir + '/var/lib/conarydb/conarydb'])
 
 
     def finishFilesystem(self):
@@ -184,17 +193,19 @@ class ImageBuilder(object):
 
             self.run(extlinux['-i', self.rootdir + '/boot/extlinux'])
 
-        # copy conary database from tmpfs to image
-        os.mkdir(self.rootdir + '/var/lib/conarydb.real', 0755)
-        conarydbFiles = [self.rootdir + '/var/lib/conarydb/' + x
-                         for x in os.listdir(self.rootdir + '/var/lib/conarydb')]
-        for conaryFile in conarydbFiles:
-            self.run(cp['-a',
-                            conaryFile,
-                            self.rootdir + '/var/lib/conarydb.real/'])
-        self.unmountConarydb()
-        os.rename(self.rootdir + '/var/lib/conarydb.real',
-                  self.rootdir + '/var/lib/conarydb')
+        if self.conaryDbMounted:
+            # copy conary database from tmpfs to image
+            os.mkdir(self.rootdir + '/var/lib/conarydb.real', 0755)
+            conarydbFiles = [self.rootdir + '/var/lib/conarydb/' + x
+                             for x in os.listdir(self.rootdir
+                                                 + '/var/lib/conarydb')]
+            for conaryFile in conarydbFiles:
+                self.run(cp['-a',
+                                conaryFile,
+                                self.rootdir + '/var/lib/conarydb.real/'])
+            self.unmountConarydb()
+            os.rename(self.rootdir + '/var/lib/conarydb.real',
+                      self.rootdir + '/var/lib/conarydb')
 
 
         self.unmountFilesystems()

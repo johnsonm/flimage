@@ -98,6 +98,10 @@ def main(argv):
 
         IB.prepareFilesystem(args.model)
 
+        IB.mountConarydb()
+
+        IB.tuneConarydb(pageSize=4096, defaultCacheSize=200000)
+
         if args.pre_image:
             for pre_image in args.pre_image:
                 IB.installPreImage(pre_image)
