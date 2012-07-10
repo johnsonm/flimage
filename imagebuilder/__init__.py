@@ -68,11 +68,6 @@ class ImageBuilder(object):
         sys.stderr.write(file(self.errname).readlines()[-10:])
         raise ImageBuilderError, message
 
-    def wait(self, p):
-        ret = p.wait()
-        if ret:
-            self.raiseError, 'command failed with return code %d' % ret
-
     def run(self, cmd, fg=False):
         os.write(self.errfd, 'RUNNING COMMAND: "%s"\n' % str(cmd))
         if fg:
@@ -111,14 +106,14 @@ class ImageBuilder(object):
             'mkpart', 'primary', '%d'%firstsector, '%d'%lastsector,
             'set', '1', 'boot', 'on'])
 
-    def createFilesystem(self):
-        return self.run(local['mkfs.%s' %self.fstype]['-F', '-L', '/', self.image])
-
     def loopImage(self):
         lines = self.run(kpartx['-a', '-v', self.image]).split('\n')
         if lines:
             self.mountDevice = '/dev/mapper/%s' %(
                 [x.split()[2] for x in lines if x][0])
+
+    def createFilesystem(self):
+        return self.run(local['mkfs.%s' %self.fstype]['-F', '-L', '/', self.mountDevice])
 
     def unloopImage(self):
         self.run(kpartx['-d', self.image])
