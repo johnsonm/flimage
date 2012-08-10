@@ -240,7 +240,7 @@ class ImageBuilder(object):
     def installTarballWithPrefix(self, tarball):
         prefix = '/'
         if ':' in tarball:
-            prefix, tarball = post_image.split(':', 1)
+            prefix, tarball = tarball.split(':', 1)
         self.installTarball(prefix, tarball)
 
     def installPreImage(self, pre_image):
