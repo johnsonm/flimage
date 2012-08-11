@@ -134,9 +134,9 @@ class ImageBuilder(object):
         os.mknod(self.rootdir + '/dev/urandom',  0666|stat.S_IFCHR, os.makedev(1,9))
         os.mknod(self.rootdir + '/dev/console',  0600|stat.S_IFCHR, os.makedev(5,1))
 
-        os.mkdir(self.rootdir + '/dev/shm', 2777)
+        os.mkdir(self.rootdir + '/dev/shm', 1777)
         os.mkdir(self.rootdir + '/dev/pts', 0755)
-        os.mkdir(self.rootdir + '/tmp', 2777)
+        os.mkdir(self.rootdir + '/tmp', 1777)
         os.mkdir(self.rootdir + '/etc', 0755)
         os.mkdir(self.rootdir + '/etc/conary', 0755)
         os.mkdir(self.rootdir + '/etc/sysconfig', 0755)
@@ -167,6 +167,10 @@ class ImageBuilder(object):
         self.run(mount['sys', '-t', 'sysfs', self.rootdir + '/sys'])
         self.run(mount['tmpfs', '-t', 'tmpfs', self.rootdir + '/dev/shm'])
         self.run(mount['tmpfs', '-t', 'tmpfs', self.rootdir + '/tmp'])
+        # need to have the right permissions after mounting
+        os.chmod(self.rootdir + '/dev/shm', 1777)
+        os.chmod(self.rootdir + '/dev/pts', 0755)
+        os.chmod(self.rootdir + '/tmp', 1777)
 
     def mountConarydb(self):
         # speed up database by not waiting for disk
@@ -324,6 +328,7 @@ class ImageBuilder(object):
         self.run(chroot[self.rootdir,
              'depmod', '-ae', '-F', '/boot/System.map-' + self.kver, self.kver],
              fg=True)
+        # --add-drivers raid0 raid1 raid4 raid5 raid6 raid10 ...?
         self.run(chroot[self.rootdir,
              'dracut', '-f', initrd, self.kver],
              fg=True)
