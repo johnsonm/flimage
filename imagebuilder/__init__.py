@@ -111,6 +111,8 @@ class ImageBuilder(object):
         if lines:
             self.mountDevice = '/dev/mapper/%s' %(
                 [x.split()[2] for x in lines if x][0])
+            return [self.mountDevice]
+        return []
 
     def createFilesystem(self):
         return self.run(local['mkfs.%s' %self.fstype]['-F', '-L', '/', self.mountDevice])

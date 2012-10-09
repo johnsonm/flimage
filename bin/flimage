@@ -90,7 +90,7 @@ def main(argv):
         loopDevices = []
         if args.type in (('rawHd'),):
             IB.partitionImage(args.size)
-            IB.loopImage()
+            loopDevices.extend(IB.loopImage())
 
         IB.createFilesystem()
 
