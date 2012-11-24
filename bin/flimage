@@ -131,11 +131,11 @@ def main(argv):
 
         IB.finishFilesystem()
 
-        IB.unmountFilesystem()
-
         if args.tarball:
             tarball = IB.createTarball()
             os.rename(tarball, '%s/%s.tar.gz' %(args.dir, args.basename))
+
+        IB.unmountFilesystem()
 
         if loopDevices:
             IB.unloopImage()
