@@ -1,0 +1,54 @@
+#!/usr/bin/python
+#
+# Copyright 2012 Michael K Johnson
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+#
+# like pwunconv + grpunconv into a target directory instead of
+# overwriting the source. Useful for creating authentication preimages
+# for flimage
+#
+# usage: authpre / /path/to/destdir
+#
+# will create /path/to/destdir/etc/{passwd,shadow} with included passwords
+
+import os
+import sys
+
+indir = sys.argv[1]
+outdir = sys.argv[2]
+
+def fields(f):
+    return [x.split(':') for x in file(f).readlines()]
+
+def pwdict(f):
+    return dict((x[0], x[1]) for x in fields(f))
+
+def replace(main, pwdict):
+    return [[x[0], pwdict.get(x[0], x[1])] + x[2:] for x in main]
+
+def writefile(f, flds):
+    file(f, 'w').writelines(':'.join(x) for x in flds)
+
+try:
+    os.makedirs(outdir+'/etc')
+except OSError:
+    pass
+
+writefile(outdir+'/etc/passwd', 
+          replace(fields(indir + '/etc/passwd'),
+                  pwdict(indir + '/etc/shadow')))
+writefile(outdir+'/etc/group',
+          replace(fields(indir + '/etc/group'),
+                  pwdict(indir + '/etc/gshadow')))
