@@ -20,6 +20,7 @@ import os
 import sys
 
 import imagebuilder
+from imagebuilder import mcc
 
 
 def main(argv):
@@ -39,6 +40,8 @@ def main(argv):
     ap.add_argument('-m', '--model',
                     required=True,
                     help='file containing system model')
+    ap.add_argument('-M', '--modelcache-cache',
+                    help='directory for cache of modelcache files')
     ap.add_argument('-D', '--root-device',
                     help='name of root device (e.g. /dev/xvda1)')
     ap.add_argument('--pre-image',
@@ -102,11 +105,20 @@ def main(argv):
 
         IB.tuneConarydb(pageSize=4096, defaultCacheSize=200000)
 
+        MCC = None
+        if args.modelcache_cache:
+            MCC = mcc.ModelCacheCache(args.modelcache_cache,
+                      file(args.model).read(), IB.rootdir)
+            MCC.prime()
+
         if args.pre_image:
             for pre_image in args.pre_image:
                 IB.installPreImage(pre_image)
 
         IB.installSystem()
+
+        if MCC is not None:
+            MCC.store()
 
         IB.removeRollbacks()
 
