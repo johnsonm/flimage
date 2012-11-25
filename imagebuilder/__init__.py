@@ -325,6 +325,9 @@ class ImageBuilder(object):
         file(self.rootdir + '/tmp/tag-script', 'w').write(tags)
         self.run(chroot[self.rootdir, 'sh', '/tmp/tag-script'], fg=True)
 
+    def runPostScript(self, command):
+        self.run(chroot[self.rootdir, 'sh', '-c', command])
+
     def createInitrd(self):
         initrd = '/boot/initrd-%s' % self.kver
         self.run(chroot[self.rootdir,
