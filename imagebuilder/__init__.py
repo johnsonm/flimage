@@ -145,6 +145,7 @@ class ImageBuilder(object):
         os.mkdir(self.rootdir + '/proc', 0755)
         os.mkdir(self.rootdir + '/sys', 0755)
         os.mkdir(self.rootdir + '/var', 0755)
+        os.mkdir(self.rootdir + '/var/tmp', 1777)
         os.mkdir(self.rootdir + '/var/lib', 0755)
         os.mkdir(self.rootdir + '/var/lib/conarydb', 0755)
         file(self.rootdir + '/etc/fstab', 'w+').write(
@@ -169,6 +170,7 @@ class ImageBuilder(object):
         self.run(mount['sys', '-t', 'sysfs', self.rootdir + '/sys'])
         self.run(mount['tmpfs', '-t', 'tmpfs', self.rootdir + '/dev/shm'])
         self.run(mount['tmpfs', '-t', 'tmpfs', self.rootdir + '/tmp'])
+        self.run(mount['tmpfs', '-t', 'tmpfs', self.rootdir + '/var/tmp'])
         # need to have the right permissions after mounting
         os.chmod(self.rootdir + '/dev/shm', 1777)
         os.chmod(self.rootdir + '/dev/pts', 0755)
@@ -227,6 +229,7 @@ class ImageBuilder(object):
         self.run(umount[self.rootdir + '/dev/pts'])
         self.run(umount[self.rootdir + '/sys'])
         self.run(umount[self.rootdir + '/dev/shm'])
+        self.run(umount[self.rootdir + '/var/tmp'])
         self.run(umount[self.rootdir + '/tmp'])
 
     def createTarball(self):
