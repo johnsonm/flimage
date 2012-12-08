@@ -156,8 +156,9 @@ class ImageBuilder(object):
             'sysfs              /sys        sysfs   defaults        0 0\n'
             'proc               /proc       proc    defaults        0 0\n')
         file(self.rootdir + '/etc/mtab', 'w+').write('')
-        file(self.rootdir + '/etc/conary/system-model', 'w+').write(
-            file(modelFile).read())
+        if modelFile:
+            file(self.rootdir + '/etc/conary/system-model', 'w+').write(
+                file(modelFile).read())
         file(self.rootdir + '/etc/sysconfig/i18n', 'w+').write('\n'.join((
             'LANG="en_US.UTF-8"',
             'SYSFONT="latarcyrheb-sun16"',
