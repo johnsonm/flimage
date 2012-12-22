@@ -136,16 +136,16 @@ class ImageBuilder(object):
         os.mknod(self.rootdir + '/dev/urandom',  0666|stat.S_IFCHR, os.makedev(1,9))
         os.mknod(self.rootdir + '/dev/console',  0600|stat.S_IFCHR, os.makedev(5,1))
 
-        os.mkdir(self.rootdir + '/dev/shm', 1777)
+        os.mkdir(self.rootdir + '/dev/shm', 01777)
         os.mkdir(self.rootdir + '/dev/pts', 0755)
-        os.mkdir(self.rootdir + '/tmp', 1777)
+        os.mkdir(self.rootdir + '/tmp', 01777)
         os.mkdir(self.rootdir + '/etc', 0755)
         os.mkdir(self.rootdir + '/etc/conary', 0755)
         os.mkdir(self.rootdir + '/etc/sysconfig', 0755)
         os.mkdir(self.rootdir + '/proc', 0755)
         os.mkdir(self.rootdir + '/sys', 0755)
         os.mkdir(self.rootdir + '/var', 0755)
-        os.mkdir(self.rootdir + '/var/tmp', 1777)
+        os.mkdir(self.rootdir + '/var/tmp', 01777)
         os.mkdir(self.rootdir + '/var/lib', 0755)
         os.mkdir(self.rootdir + '/var/lib/conarydb', 0755)
         file(self.rootdir + '/etc/fstab', 'w+').write(
@@ -173,9 +173,9 @@ class ImageBuilder(object):
         self.run(mount['tmpfs', '-t', 'tmpfs', self.rootdir + '/tmp'])
         self.run(mount['tmpfs', '-t', 'tmpfs', self.rootdir + '/var/tmp'])
         # need to have the right permissions after mounting
-        os.chmod(self.rootdir + '/dev/shm', 1777)
+        os.chmod(self.rootdir + '/dev/shm', 01777)
         os.chmod(self.rootdir + '/dev/pts', 0755)
-        os.chmod(self.rootdir + '/tmp', 1777)
+        os.chmod(self.rootdir + '/tmp', 01777)
 
     def mountConarydb(self):
         # speed up database by not waiting for disk
