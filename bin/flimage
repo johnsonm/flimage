@@ -38,7 +38,7 @@ def main(argv):
                     required=True,
                     help='work directory')
     ap.add_argument('-m', '--model',
-                    required=True,
+                    required=False,
                     help='file containing system model')
     ap.add_argument('-M', '--modelcache-cache',
                     help='directory for cache of modelcache files')
@@ -46,10 +46,10 @@ def main(argv):
                     help='name of root device (e.g. /dev/xvda1)')
     ap.add_argument('--pre-image',
                     action='append',
-                    help='[prefix:]archive to unpack before installation')
+                    help='[prefix:]archive to unpack before any system model')
     ap.add_argument('--post-image',
                     action='append',
-                    help='[prefix:]archive to unpack after installation')
+                    help='[prefix:]archive to unpack after any system model')
     ap.add_argument('--post-script',
                     action='append',
                     help='shell (-c) to run in chroot after post images unpacked')
@@ -104,12 +104,12 @@ def main(argv):
 
         IB.prepareFilesystem(args.model)
 
-        IB.mountConarydb()
-
-        IB.tuneConarydb(pageSize=4096, defaultCacheSize=200000)
+        if args.model:
+            IB.mountConarydb()
+            IB.tuneConarydb(pageSize=4096, defaultCacheSize=200000)
 
         MCC = None
-        if args.modelcache_cache:
+        if args.model and args.modelcache_cache:
             MCC = mcc.ModelCacheCache(args.modelcache_cache,
                       file(args.model).read(), IB.rootdir)
             MCC.prime()
@@ -118,12 +118,14 @@ def main(argv):
             for pre_image in args.pre_image:
                 IB.installPreImage(pre_image)
 
-        IB.installSystem()
+        if args.model:
+            IB.installSystem()
 
         if MCC is not None:
             MCC.store()
 
-        IB.removeRollbacks()
+        if args.model:
+            IB.removeRollbacks()
 
         if args.post_image:
             for post_image in args.post_image:
@@ -131,11 +133,13 @@ def main(argv):
 
         IB.createBootloaderConf()
 
-        IB.runTagScripts()
+        if args.model:
+            IB.runTagScripts()
 
-        IB.convertPasswords()
+        if args.model:
+            IB.convertPasswords()
 
-        if not args.preserve_root:
+        if args.model and not args.preserve_root:
             IB.unsetRootPassword()
 
         IB.setInitlevel(args.initlevel)
