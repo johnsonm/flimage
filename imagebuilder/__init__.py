@@ -279,7 +279,6 @@ class ImageBuilder(object):
             'read_only',
             'timeout 50',
             'default %s' % self.kver,
-            'root %s' % self.rootdev,
             "include '/etc/bootloader.d/*'",
             "linux %s 'Linux %s' /boot/vmlinuz-%s /boot/initrd-%s" %((self.kver,) * 4),
             ''
@@ -344,7 +343,7 @@ class ImageBuilder(object):
             file(rootConf, 'w').write('\n'.join((
                 'timeout 50',
                 'read_only ',
-                'root %s' % self.rootdev)))
+                'root LABEL=/')))
 
         self.run(chroot[self.rootdir, 'bootman'])
 
