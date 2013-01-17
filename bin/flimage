@@ -84,6 +84,8 @@ def main(argv):
     else:
         rootdev = '/dev/sda1'
         if args.type in (('ami'),):
+            # An unpartitioned root device gets a magic virtual
+            # partition table and so still shows up as /dev/xvda1
             rootdev = '/dev/xvda1'
         elif args.type in (('rawFs'),):
             rootdev = '/dev/sda'
