@@ -15,7 +15,7 @@ Features
 
 * raw hard drive images
 
-* raw images configured to be build into AMIs for EC2
+* raw images configured to be built into AMIs for EC2
 
 When building any of those images, it can also optionally write out
 a tarball of the contents of the image.
