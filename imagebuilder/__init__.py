@@ -16,6 +16,7 @@
 #
 
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -159,11 +160,6 @@ class ImageBuilder(object):
         if modelFile:
             file(self.rootdir + '/etc/conary/system-model', 'w+').write(
                 file(modelFile).read())
-        file(self.rootdir + '/etc/sysconfig/i18n', 'w+').write('\n'.join((
-            'LANG="en_US.UTF-8"',
-            'SYSFONT="latarcyrheb-sun16"',
-            '',
-        )))
 
         self.run(mount['proc', '-t', 'proc', self.rootdir + '/proc'])
         self.run(mount['devpts', '-t', 'devpts',
@@ -189,6 +185,42 @@ class ImageBuilder(object):
                       'vacuum;' % (defaultCacheSize, pageSize)]
                  | sqlite3[self.rootdir + '/var/lib/conarydb/conarydb'])
 
+    def writePostConfig(self, timezone, lang, keytable):
+        configFiles = [
+            ('/etc/sysconfig/clock',
+             ('ZONE="%s"' % (timezone),
+              'UTC=true',
+              '')),
+            ('/etc/sysconfig/i18n', 
+             ('LANG="%s"' % (lang),
+              'SYSFONT="latarcyrheb-sun16"',
+              '')),
+            ('/etc/sysconfig/keyboard',
+             ('KEYBOARDTYPE="pc"',
+              'KEYTABLE="%s"' % (keytable),
+              '')),
+            ('/etc/sysconfig/mouse',
+             ('MOUSETYPE="imps2"',
+              'XEMU3="no" # yes = emulate 3 buttons',
+              'XMOUSETYPE="imps2"',
+              '# Common mouse types:',
+              '# imps2 -- A generic USB wheel mouse',
+              '# microsoft -- A microsoft mouse',
+              '# logitech -- A logitech mouse',
+              '# ps/2 -- Legacy PS/2 mouse',
+              ''))
+        ]
+        for filename, contents in configFiles:
+            f = self.rootdir + filename
+            if not os.path.exists(f): # or in argument exclude list eventually
+                file(f, 'w+').write('\n'.join(contents))
+
+        tzFile = self.rootdir + '/usr/share/zoneinfo/' + timezone
+        if os.path.exists(tzFile):
+            # copy2 preserves metadata
+            shutil.copy2(tzFile, self.rootdir + '/etc/localtime')
+        else:
+            self.raiseError('specified zoneinfo file %s missing' % tzFile)
 
     def finishFilesystem(self):
         mbr = None
@@ -211,7 +243,6 @@ class ImageBuilder(object):
             os.rename(self.rootdir + '/var/lib/conarydb.real',
                       self.rootdir + '/var/lib/conarydb')
 
-
         self.unmountFilesystems()
 
         if mbr:
@@ -219,8 +250,8 @@ class ImageBuilder(object):
             l = os.write(f, mbr)
             os.close(f)
             if l != len(mbr):
-                raiseError('failed to write full MBR: wrote %d of %d bytes'
-                           % (l, len(mbr)))
+                self.raiseError('failed to write full MBR: wrote %d of %d bytes'
+                                % (l, len(mbr)))
 
     def unmountConarydb(self):
         self.run(umount[self.rootdir + '/var/lib/conarydb'])
