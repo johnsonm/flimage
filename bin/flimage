@@ -76,6 +76,15 @@ def main(argv):
     ap.add_argument('--tarball',
                     action="store_true", default=False,
                     help='create tarball from image file')
+    ap.add_argument('--timezone',
+                    default='UTC',
+                    help='set ZONE in /etc/sysconfig/clock and set up /etc/localtime accordingly (defaults to "UTC")')
+    ap.add_argument('--lang',
+                    default='en_US.UTF-8',
+                    help='set LANG locale setting in /etc/sysconfig/i18n (defaults to "en_US.UTF-8")')
+    ap.add_argument('--keytable',
+                    default='us',
+                    help='set KEYTABLE in /etc/sysconfig/keyboard (defaults to "us"')
     args = ap.parse_args(argv[1:])
 
     if not args.tarball:
@@ -163,6 +172,8 @@ def main(argv):
         if args.post_script:
             for post_script in args.post_script:
                 IB.runPostScript(post_script)
+        
+        IB.writeEtcConfigs(args.timezone, args.lang, args.keytable)
 
         IB.finishFilesystem()
 
