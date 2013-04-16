@@ -185,11 +185,7 @@ class ImageBuilder(object):
                       'vacuum;' % (defaultCacheSize, pageSize)]
                  | sqlite3[self.rootdir + '/var/lib/conarydb/conarydb'])
 
-    def writeEtcConfigs(self, timezone, lang, keytable):
-        # Prepare default /etc files. It is convenient to be able to
-        # select them on their full name, as eventually we will want to
-        # be able to optionally exclude files from the command line.
-
+    def writePostConfig(self, timezone, lang, keytable):
         configFiles = [
             ('/etc/sysconfig/clock',
              ('ZONE="%s"' % (timezone),
@@ -197,7 +193,7 @@ class ImageBuilder(object):
               '')),
             ('/etc/sysconfig/i18n', 
              ('LANG="%s"' % (lang),
-              'SYSFONT="ter-v16f"',
+              'SYSFONT="latarcyrheb-sun16"',
               '')),
             ('/etc/sysconfig/keyboard',
              ('KEYBOARDTYPE="pc"',
@@ -211,7 +207,7 @@ class ImageBuilder(object):
               '# imps2 -- A generic USB wheel mouse',
               '# microsoft -- A microsoft mouse',
               '# logitech -- A logitech mouse',
-              '# ps/2 -- Ok, maybe not so common...',
+              '# ps/2 -- Legacy PS/2 mouse',
               ''))
         ]
         for filename, contents in configFiles:
@@ -219,16 +215,12 @@ class ImageBuilder(object):
             if not os.path.exists(f): # or in argument exclude list eventually
                 file(f, 'w+').write('\n'.join(contents))
 
-        # If tzFile does not exist, the system will default to UTC in
-        # /etc/localtime as provided by glibc:config
-
         tzFile = self.rootdir + '/usr/share/zoneinfo/' + timezone
         if os.path.exists(tzFile):
             # copy2 preserves metadata
             shutil.copy2(tzFile, self.rootdir + '/etc/localtime')
         else:
-            raise ImageBuilderError('!!! %s not present in the image? Exiting.' 
-                                    % (tzFile))
+            self.raiseError('specified zoneinfo file %s missing' % tzFile)
 
     def finishFilesystem(self):
         mbr = None
@@ -258,8 +250,8 @@ class ImageBuilder(object):
             l = os.write(f, mbr)
             os.close(f)
             if l != len(mbr):
-                raiseError('failed to write full MBR: wrote %d of %d bytes'
-                           % (l, len(mbr)))
+                self.raiseError('failed to write full MBR: wrote %d of %d bytes'
+                                % (l, len(mbr)))
 
     def unmountConarydb(self):
         self.run(umount[self.rootdir + '/var/lib/conarydb'])
