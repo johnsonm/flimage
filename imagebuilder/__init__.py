@@ -66,7 +66,7 @@ class ImageBuilder(object):
 
     def raiseError(self, message):
         sys.stderr.write('See errors in %s (last 10 lines follow):\n')
-        sys.stderr.write(file(self.errname).readlines()[-10:])
+        sys.stderr.write(''.join(file(self.errname).readlines()[-10:]))
         raise ImageBuilderError, message
 
     def run(self, cmd, fg=False):
