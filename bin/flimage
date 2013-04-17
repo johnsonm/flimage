@@ -169,11 +169,11 @@ def main(argv):
 
         IB.runBootman()
 
+        IB.writePostConfig(args.timezone, args.lang, args.keytable)
+
         if args.post_script:
             for post_script in args.post_script:
                 IB.runPostScript(post_script)
-        
-        IB.writePostConfig(args.timezone, args.lang, args.keytable)
 
         IB.finishFilesystem()
 
