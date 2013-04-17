@@ -51,8 +51,7 @@ types.
   Conary to get started building additional images quicker.
 
 It has many limitations, some of which are known.  Some of the known
-limitations are documented in issues at github:
-https://github.com/johnsonm/flimage/issues
+limitations are documented in [issues at github](https://github.com/johnsonm/flimage/issues)
 
 
 Running
@@ -64,13 +63,12 @@ Run `flimage --help` for a summary of the command-line arguments.
 Contributing
 ------------
 
-Filing issues at https://github.com/johnsonm/flimage/issues is a
-contribution.
+Filing [issues at github](https://github.com/johnsonm/flimage/issues)
+is a contribution.
 
 Helping users use this software is a contribution.  Discussion on
 using this software should take place on the
-foresight-devel@lists.foresightlinux.org mailing list:
-https://lists.foresightlinux.org/mailman/listinfo/foresight-devel
+[foresight-devel@lists.foresightlinux.org mailing list](https://lists.foresightlinux.org/mailman/listinfo/foresight-devel)
 
 Code contributions are accepted under the terms of the Apache License,
 version 2.  Where the license requires that "You must cause any
