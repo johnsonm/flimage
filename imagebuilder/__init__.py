@@ -26,6 +26,7 @@ from plumbum import FG, BG, local
 from plumbum.cmd import bootman, chroot, conary, cp, dd, depmod, dracut
 from plumbum.cmd import extlinux, kpartx, mount, parted, sh, tar, umount
 from plumbum.cmd import echo, sqlite3
+import plumbum.version
 
 class ImageBuilderError(IOError):
     pass
@@ -323,7 +324,9 @@ class ImageBuilder(object):
         self.run(chroot[self.rootdir, 'pwconv'])
 
     def unsetRootPassword(self):
-        self.run(chroot[self.rootdir, 'usermod', '-p', '""', 'root'])
+        if (not isinstance(plumbum.version, tuple)) or plumbum.version[0] < 1:
+            self.raiseError('newer plumbum required to reset root password')
+        self.run(chroot[self.rootdir, 'usermod', '-p', '', 'root'])
 
     def setInitlevel(self, initlevel):
         inittab = file(self.rootdir + '/etc/inittab').readlines()
