@@ -114,10 +114,9 @@ def main(argv):
     try:
         IB.allocateImage(args.sparse)
 
-        loopDevices = []
         if args.type in (('rawHd'),):
             IB.partitionImage(args.size)
-            loopDevices.extend(IB.loopImage())
+            IB.loopImage()
 
         IB.createFilesystem()
 
@@ -183,8 +182,7 @@ def main(argv):
 
         IB.unmountFilesystem()
 
-        if loopDevices:
-            IB.unloopImage()
+        IB.unloopImage()
 
         IB.removeRootdir()
 

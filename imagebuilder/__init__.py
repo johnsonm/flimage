@@ -23,8 +23,10 @@ import sys
 import tempfile
 
 from plumbum import FG, BG, local
-from plumbum.cmd import bootman, chroot, conary, cp, dd, depmod, dracut
-from plumbum.cmd import extlinux, kpartx, mount, parted, sh, tar, umount
+from plumbum.cmd import bootman, chroot, conary, cp
+from plumbum.cmd import dd, depmod, dmsetup, dracut
+from plumbum.cmd import extlinux, kpartx, losetup, mount
+from plumbum.cmd import parted, sh, tar, umount
 from plumbum.cmd import echo, sqlite3
 import plumbum.version
 
@@ -45,6 +47,7 @@ class ImageBuilder(object):
                                           suffix='.img',
                                           dir=basedir)
         self.mountDevice = self.image
+        self.loopDevices = []
         self.conaryDbMounted = False
         os.close(fd)
         self.rootdir = None
@@ -101,14 +104,21 @@ class ImageBuilder(object):
         if lines:
             self.mountDevice = '/dev/mapper/%s' %(
                 [x.split()[2] for x in lines if x][0])
-            return [self.mountDevice]
-        return []
+            self.loopDevices.append(self.mountDevice)
 
     def createFilesystem(self):
         return self.run(local['mkfs.%s' %self.fstype]['-F', '-L', '/', self.mountDevice])
 
     def unloopImage(self):
-        self.run(kpartx['-d', self.image])
+        if self.loopDevices:
+            self.run(kpartx['-d', self.image])
+            # in case kpartx has failed for any reason, remove the mappings
+            for device in self.loopDevices:
+                if os.path.exists(device):
+                    self.run(dmsetup['remove', device])
+                # /dev/mapper/loop0p1 -> /dev/loop0
+                base = device.replace('/mapper', '')[:-2]
+                self.run(losetup['-d', base])
 
     def mountFilesystem(self):
         self.rootdir = tempfile.mkdtemp(prefix='mkd.', dir=self.basedir)
