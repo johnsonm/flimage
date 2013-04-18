@@ -41,7 +41,6 @@ class ImageBuilder(object):
         self.errfd, self.errname = tempfile.mkstemp(prefix='mke.',
                                                     suffix='.log',
                                                     dir=basedir)
-        self.progressMessage = ''
         fd, self.image = tempfile.mkstemp(prefix='mki.',
                                           suffix='.img',
                                           dir=basedir)
@@ -72,23 +71,12 @@ class ImageBuilder(object):
 
     def run(self, cmd, fg=False):
         os.write(self.errfd, 'RUNNING COMMAND: "%s"\n' % str(cmd))
+        sys.stdout.write(str(cmd) + '\n')
+        sys.stdout.flush()
         if fg:
-            sys.stdout.write('\n' + str(cmd) + '\n')
-            self.progressMessage = ''
-            cmd(stdout=None, stderr=self.errfd)
+            return cmd(stdout=None, stderr=self.errfd)
         else:
-            self.progress(str(cmd))
             return cmd(stderr=self.errfd)
-
-    def progress(self, message):
-        whiteoutLen = (len(self.progressMessage) - len(message))
-        if whiteoutLen > 0:
-            whiteout = ' ' * whiteoutLen
-        else:
-            whiteout = ''
-        sys.stderr.write('\r%s%s' %(message, whiteout))
-        sys.stderr.flush()
-        self.progressMessage = message
 
     def allocateImage(self, sparse=True):
         if sparse:
