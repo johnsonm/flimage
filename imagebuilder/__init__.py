@@ -26,20 +26,25 @@ from plumbum import FG, BG, local
 from plumbum.cmd import bootman, chroot, conary, cp
 from plumbum.cmd import dd, depmod, dmsetup, dracut
 from plumbum.cmd import extlinux, kpartx, losetup, mount
-from plumbum.cmd import parted, sh, tar, umount
+from plumbum.cmd import parted, sgdisk, sh, tar, umount
 from plumbum.cmd import echo, sqlite3
 import plumbum.version
+
+# use the parted codes for partition types
+DOS = 'msdos'
+GPT = 'gpt'
 
 class ImageBuilderError(IOError):
     pass
 
 class ImageBuilder(object):
 
-    def __init__(self, basedir, size, rootdev, fstype):
+    def __init__(self, basedir, size, rootdev, fstype, partType=DOS):
         self.basedir = basedir
         self.size = size
         self.rootdev = rootdev
         self.fstype = fstype
+        self.partType = partType
         self.errfd, self.errname = tempfile.mkstemp(prefix='mke.',
                                                     suffix='.log',
                                                     dir=basedir)
@@ -92,12 +97,22 @@ class ImageBuilder(object):
     def partitionImage(self, size):
         sectors = size * 2048
         firstsector = 2048 # use fdisk default of reserving 1MB
-        lastsector = sectors - 1
+        if self.partType == DOS:
+            lastsector = sectors - 1
+        else:
+            # at least 34 (1+1+32) sectors reserved for the header and
+            # partition table copy at the end of the disk.  Leave room
+            # for a full default 64K stride for now
+            lastsector = sectors - 127
         self.run(parted['--script', self.image,
             'unit', 's',
-            'mklabel', 'msdos',
+            'mklabel', self.partType,
             'mkpart', 'primary', '%d'%firstsector, '%d'%lastsector,
             'set', '1', 'boot', 'on'])
+        # extlinux requires the legacy_boot flag in GPT
+        if self.partType == GPT:
+            # parted should take set 1 legacy_boot on, but may be too old
+            self.run(sgdisk[self.image, '--attributes=1:set:2'])
 
     def loopImage(self):
         lines = self.run(kpartx['-a', '-v', self.image]).split('\n')
@@ -223,8 +238,12 @@ class ImageBuilder(object):
 
     def finishFilesystem(self):
         mbr = None
-        if os.path.exists(self.rootdir + '/boot/extlinux/mbr.bin'):
-            mbr = file(self.rootdir + '/boot/extlinux/mbr.bin').read()
+        if self.partType == GPT:
+            mbrPath = self.rootdir + '/boot/extlinux/gptmbr.bin'
+        else:
+            mbrPath = self.rootdir + '/boot/extlinux/mbr.bin'
+        if os.path.exists(mbrPath):
+            mbr = file(mbrPath).read()
 
             self.run(extlinux['-i', self.rootdir + '/boot/extlinux'])
 

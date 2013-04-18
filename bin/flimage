@@ -54,6 +54,9 @@ def main(argv):
                     help='directory for cache of modelcache files')
     ap.add_argument('-D', '--root-device',
                     help='name of root device (e.g. /dev/xvda1)')
+    ap.add_argument('--gpt',
+                    action="store_true", default=False,
+                    help='Use GPT instead of default DOS partition table')
     ap.add_argument('--pre-image',
                     action='append',
                     help='[prefix:]archive to unpack before any system model')
@@ -109,7 +112,13 @@ def main(argv):
         elif args.type in (('rawFs'),):
             rootdev = '/dev/sda'
 
-    IB = imagebuilder.ImageBuilder(args.dir, args.size, rootdev, 'ext4')
+    if args.gpt:
+        partType = imagebuilder.GPT
+    else:
+        partType = imagebuilder.DOS
+
+    IB = imagebuilder.ImageBuilder(args.dir, args.size, rootdev, 'ext4',
+                                   partType=partType)
 
     try:
         IB.allocateImage(args.sparse)

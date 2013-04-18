@@ -13,7 +13,7 @@ Features
 
 * raw filesystem images
 
-* raw hard drive images
+* raw hard drive images, with either DOS or GPT partitions tables
 
 * raw images configured to be built into AMIs for EC2
 
