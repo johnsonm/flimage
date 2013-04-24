@@ -133,7 +133,10 @@ class ImageBuilder(object):
                     self.run(dmsetup['remove', device])
                 # /dev/mapper/loop0p1 -> /dev/loop0
                 base = device.replace('/mapper', '')[:-2]
-                self.run(losetup['-d', base])
+                dev = os.path.basename(base)
+                backing = '/sys/block/' + dev + '/loop/backing_file'
+                if os.path.exists(backing):
+                    self.run(losetup['-d', base])
 
     def mountFilesystem(self):
         self.rootdir = tempfile.mkdtemp(prefix='mkd.', dir=self.basedir)
