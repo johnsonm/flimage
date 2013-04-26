@@ -401,7 +401,8 @@ class ImageBuilder(object):
             file(rootConf, 'w').write('\n'.join((
                 'timeout 50',
                 'read_only ',
-                'root LABEL=/')))
+                'root LABEL=/',
+                '')))
 
         self.run(chroot[self.rootdir, 'bootman'])
 
