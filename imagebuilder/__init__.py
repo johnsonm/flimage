@@ -39,12 +39,13 @@ class ImageBuilderError(IOError):
 
 class ImageBuilder(object):
 
-    def __init__(self, basedir, size, rootdev, fstype, partType=DOS):
+    def __init__(self, basedir, size, rootdev, fstype, partType=DOS, inspectFailure=False):
         self.basedir = basedir
         self.size = size
         self.rootdev = rootdev
         self.fstype = fstype
         self.partType = partType
+        self.inspectFailure = inspectFailure
         self.errfd, self.errname = tempfile.mkstemp(prefix='mke.',
                                                     suffix='.log',
                                                     dir=basedir)
@@ -62,6 +63,9 @@ class ImageBuilder(object):
             os.rmdir(self.rootdir)
 
     def cleanUp(self):
+        if self.inspectFailure:
+            # give the user a chance to investigate the problem first
+            self.rootShell()
         for cleanup in (self.unmountConarydb,
                         self.unmountFilesystems,
                         self.unmountFilesystem,
@@ -85,6 +89,14 @@ class ImageBuilder(object):
             return cmd(stdout=None, stderr=self.errfd)
         else:
             return cmd(stderr=self.errfd)
+
+    def rootShell(self):
+        # does not call run() to avoid adding an "interactive" mode to run()
+        try:
+            chroot[self.rootdir, 'sh'] & FG
+        except:
+            sys.stdout.write('failed to invoke shell in image' + '\n')
+            sys.stdout.flush()
 
     def allocateImage(self, sparse=True):
         if sparse:

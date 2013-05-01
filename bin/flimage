@@ -66,6 +66,9 @@ def main(argv):
     ap.add_argument('--post-script',
                     action='append',
                     help='shell (-c) to run in chroot after post images unpacked')
+    ap.add_argument('--inspect',
+                    action="store_true", default=False,
+                    help='run interactive shell session in chroot after build')
     ap.add_argument('--preserve-root',
                     action="store_true", default=False,
                     help='do not unset the root password')
@@ -118,7 +121,7 @@ def main(argv):
         partType = imagebuilder.DOS
 
     IB = imagebuilder.ImageBuilder(args.dir, args.size, rootdev, 'ext4',
-                                   partType=partType)
+                                   partType=partType, inspectFailure=True)
 
     try:
         IB.allocateImage(args.sparse)
@@ -182,6 +185,9 @@ def main(argv):
         if args.post_script:
             for post_script in args.post_script:
                 IB.runPostScript(post_script)
+
+        if args.inspect:
+            IB.rootShell()
 
         IB.finishFilesystem()
 
