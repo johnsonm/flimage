@@ -17,10 +17,12 @@
 
 import os
 import shutil
+import signal
 import stat
 import subprocess
 import sys
 import tempfile
+import time
 
 from plumbum import FG, BG, local
 from plumbum.cmd import bootman, chroot, conary, cp
@@ -29,6 +31,8 @@ from plumbum.cmd import extlinux, kpartx, losetup, mount
 from plumbum.cmd import parted, sgdisk, sh, tar, umount
 from plumbum.cmd import echo, sqlite3
 import plumbum.version
+
+from imagebuilder import clone
 
 # use the parted codes for partition types
 DOS = 'msdos'
@@ -81,14 +85,59 @@ class ImageBuilder(object):
         sys.stderr.write(''.join(file(self.errname).readlines()[-10:]))
         raise ImageBuilderError, message
 
+    def clone(self, cmd):
+        retcode = 0
+
+        pid = clone.clone(signal.SIGCHLD|clone.CLONE_NEWPID)
+        if pid < 0:
+            self.raiseError('clone failed')
+
+        if pid == 0:
+            def sigterm(num, frame):
+                os.write(self.errfd, 'CONTAINER %d received SIGTERM\n' %(pid))
+                os._exit(2)
+            signal.signal(signal.SIGTERM, sigterm)
+
+            pid = clone.getpid()
+            if pid != 1:
+                os.write(self.errfd, 'CONTAINER FAILED: pid %d !== 1\n' %(pid))
+                os._exit(retcode)
+
+            try:
+                os.write(self.errfd, 'CONTAINED COMMAND: "%s"\n' % (str(cmd)))
+                sys.stdout.write(str(cmd) + '\n')
+                sys.stdout.flush()
+                cmd(stdout=None, stderr=self.errfd)
+            except:
+                os.write(self.errfd, 'ERROR exit code from contained command\n')
+                retcode = 1
+            finally:
+                os.write(self.errfd, '%d SIGTERM\n' % (clone.getpid()))
+                os.kill(-1, signal.SIGTERM)
+                time.sleep(0.1)
+                os.write(self.errfd, '%d SIGKILL\n' % (clone.getpid()))
+                os.kill(-1, signal.SIGKILL)
+                # as long as they are dead, the real init can reap them later
+                os._exit(retcode)
+
+        os.write(self.errfd, '%d WAITING for %d...\n' % (clone.getpid(), pid))
+        pid, status = os.waitpid(pid, 0)
+        os.write(self.errfd, '%d terminated with exit status %d\n' % (
+            pid, os.WEXITSTATUS(status)))
+        if not os.WIFEXITED(status):
+            self.raiseError('container %d killed' %(pid))
+        if os.WEXITSTATUS(status) != 0:
+            self.raiseError('contained command failed')
+
     def run(self, cmd, fg=False):
         os.write(self.errfd, 'RUNNING COMMAND: "%s"\n' % str(cmd))
         sys.stdout.write(str(cmd) + '\n')
         sys.stdout.flush()
         if fg:
-            return cmd(stdout=None, stderr=self.errfd)
+            result = cmd(stdout=None, stderr=self.errfd)
         else:
-            return cmd(stderr=self.errfd)
+            result = cmd(stderr=self.errfd)
+        return result
 
     def rootShell(self):
         # does not call run() to avoid adding an "interactive" mode to run()
@@ -392,7 +441,7 @@ class ImageBuilder(object):
         t.append('')
         tags = '\n'.join(t)
         file(self.rootdir + '/tmp/tag-script', 'w').write(tags)
-        self.run(chroot[self.rootdir, 'sh', '/tmp/tag-script'], fg=True)
+        self.clone(chroot[self.rootdir, 'sh', '/tmp/tag-script'])
 
     def runPostScript(self, command):
         self.run(chroot[self.rootdir, 'sh', '-c', command])
