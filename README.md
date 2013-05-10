@@ -60,6 +60,13 @@ Running
 Run `flimage --help` for a summary of the command-line arguments.
 
 
+API
+---
+
+The `imagebuilder` Python module included does not present a stable
+API.  It may be modified at any time.
+
+
 Contributing
 ------------
 
