@@ -93,11 +93,6 @@ class ImageBuilder(object):
             self.raiseError('clone failed')
 
         if pid == 0:
-            def sigterm(num, frame):
-                os.write(self.errfd, 'CONTAINER %d received SIGTERM\n' %(pid))
-                os._exit(2)
-            signal.signal(signal.SIGTERM, sigterm)
-
             pid = clone.getpid()
             if pid != 1:
                 os.write(self.errfd, 'CONTAINER FAILED: pid %d !== 1\n' %(pid))
@@ -113,10 +108,23 @@ class ImageBuilder(object):
                 retcode = 1
             finally:
                 os.write(self.errfd, '%d SIGTERM\n' % (clone.getpid()))
-                os.kill(-1, signal.SIGTERM)
-                time.sleep(0.1)
-                os.write(self.errfd, '%d SIGKILL\n' % (clone.getpid()))
-                os.kill(-1, signal.SIGKILL)
+                try:
+                    os.kill(-1, signal.SIGTERM)
+                except OSError:
+                    # no processes to kill
+                    os._exit(retcode)
+                # kill succeeded, must have been children to kill.
+                # Sleep long enough to give them time to clean up.
+                time.sleep(2)
+                # If the child processes do not die in reasonable time
+                # from SIGTERM, kill them with SIGKILL.
+                os.write(self.errfd, '%d sending SIGKILL...\n' % (clone.getpid()))
+                try:
+                    os.kill(-1, signal.SIGKILL)
+                    os.write(self.errfd, 'some processes remained to SIGKILL\n')
+                except:
+                    # Yay, they cleaned up
+                    os.write(self.errfd, 'all processes properly terminated\n')
                 # as long as they are dead, the real init can reap them later
                 os._exit(retcode)
 
