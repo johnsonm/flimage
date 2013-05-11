@@ -29,11 +29,11 @@ clean:
 	rm -f imagebuilder/*.pyc imagebuilder/*.pyo
 
 install:
-	install -d 755 $(DESTDIR)$(sitedir)/imagebuilder
+	install -d -m 755 $(DESTDIR)$(sitedir)/imagebuilder
 	install -m 755 imagebuilder/*.py $(DESTDIR)/$(sitedir)/imagebuilder
-	install -d 755 $(DESTDIR)$(bindir)
+	install -d -m 755 $(DESTDIR)$(bindir)
 	install -m 755 bin/flimage $(DESTDIR)/$(bindir)/
-	install -d 755 $(DESTDIR)$(libexecdir)/flimage
+	install -d -m 755 $(DESTDIR)$(libexecdir)/flimage
 	install -m 755 bin/authpre $(DESTDIR)/$(libexecdir)/flimage/
 	python -c "from compileall import *; compile_dir('$(DESTDIR)$(sitedir)/imagebuilder', 10, '$(sitedir)/imagebuilder')"
 	python -O -c "from compileall import *; compile_dir('$(DESTDIR)$(sitedir)/imagebuilder', 10, '$(sitedir)/imagebuilder')"
