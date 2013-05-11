@@ -57,7 +57,17 @@ limitations are documented in [issues at github](https://github.com/johnsonm/fli
 Running
 -------
 
+flimage requires root permissions to run.
+
 Run `flimage --help` for a summary of the command-line arguments.
+
+To build 32-bit images on a 64-bit system, use setarch:
+
+    setarch i686 flimage ...
+
+You will need either to use a system model with an explicit 32-bit
+flavor, or a system model that has no explicit flavor and depends
+on the system flavor.
 
 
 API

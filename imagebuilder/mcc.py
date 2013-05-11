@@ -27,7 +27,9 @@ class ModelCacheCache(object):
     def __init__(self, directory, modeltext, targetroot):
         self.dir = directory
         self.targetfile = targetroot + '/var/lib/conarydb/modelcache'
-        self.hash = hashlib.sha1(modeltext).hexdigest()
+        # include personality because personality can affect the
+        # contents of the model file
+        self.hash = hashlib.sha1(os.uname()[4] + modeltext).hexdigest()
         self.hashfile = '/'.join((self.dir, self.hash))
 
     def prime(self):
