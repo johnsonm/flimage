@@ -19,6 +19,7 @@
 
 import ctypes
 import os
+import sys
 
 CLONE_VM = 0x00000100 # Set if VM shared between processes.
 CLONE_FS = 0x00000200 # Set if fs info shared between processes.
@@ -44,17 +45,22 @@ CLONE_NEWNET = 0x40000000	# New network namespace.
 CLONE_IO = 0x80000000	# Clone I/O context.
 
 # intended to raise an error early if current architecture not supported
+hostbits = 64 if True in ['/lib64/' in x for x in sys.path] else 32
 architecture = os.uname()[4]
 SYS_clone = {
-    'x86_64': 56,
-    'i686': 120,
-    'i386': 120,
-}[architecture]
+    ('x86_64', 64): 56,
+    ('i686', 64): 56,
+    ('i386', 64): 56,
+    ('i686', 32): 120,
+    ('i386', 32): 120,
+}[(architecture, hostbits)]
 SYS_getpid = {
-    'x86_64': 39,
-    'i686': 20,
-    'i386': 20,
-}[architecture]
+    ('x86_64', 64): 39,
+    ('i686', 64): 39,
+    ('i386', 64): 39,
+    ('i686', 32): 20,
+    ('i386', 32): 20,
+}[(architecture, hostbits)]
 
 class LateBoundLibc(object):
     def __init__(self):
