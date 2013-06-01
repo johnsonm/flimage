@@ -41,9 +41,6 @@ def main(argv):
                     help='basename for produced files')
     ap.add_argument('-s', '--size', type=int,
                     help='size of image file to create in MiB')
-    ap.add_argument('--sparse',
-                    action="store_true", default=False,
-                    help='create sparse image file')
     ap.add_argument('-d', '--dir',
                     required=True,
                     help='work directory')
@@ -91,7 +88,19 @@ def main(argv):
     ap.add_argument('--keytable',
                     default='us',
                     help='set console keyboard [us]')
+    sparse_xor_dense = ap.add_mutually_exclusive_group()
+    sparse_xor_dense.add_argument('--sparse',
+                                  action="store_true", default=True,
+                                  help='create sparse image file (the default)')
+    sparse_xor_dense.add_argument('--dense',
+                                  action="store_true", default=False,
+                                  help='create dense (non-sparse) image file')
     args = ap.parse_args(argv[1:])
+
+    # args.dense needs to be logically coupled to args.sparse
+    # this works because the options are guaranteed to be mutually exclusive
+    if args.dense:
+        args.sparse = False
 
     if not args.tarball:
         if not args.size:
@@ -102,7 +111,6 @@ def main(argv):
     if args.type == 'tarball':
         if not args.size:
             args.size = 30000
-            args.sparse = True
 
     if args.root_device:
         rootdev = args.root_device
